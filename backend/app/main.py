@@ -1,5 +1,11 @@
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
 from backend.app.database import engine, Base
 from backend.app.seed.seed_data import seed_database
 from backend.app.routers import (
@@ -10,40 +16,36 @@ from backend.app.routers import (
     hindcasting_router,
     attribution_router,
     assistant_router,
-    reports_router
+    reports_router,
 )
 
-# Initialize FastAPI App
+# Initialize FastAPI
 app = FastAPI(
     title="OceanGuard AI — Maritime Oil Spill Intelligence & Vessel Attribution API",
-    description="Backend REST API for SIH26143: Spaceborne SAR detection, Lagrangian hindcast backtracking, and AIS vessel correlation.",
-    version="1.0.0"
+    description="Backend REST API for SIH26143: Spaceborne SAR detection, Lagrangian hindcast backtracking, and AIS Vessel correlation.",
+    version="1.0.0",
 )
 
-# Configure CORS for React frontend (port 3000, 5173, etc.)
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "*"
-]
-
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Startup Event: Ensure tables and seed data exist
+# Initialize database
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
     seed_database()
 
-# Mount all Routers
+
+# -----------------------------
+# API ROUTERS
+# -----------------------------
+
 app.include_router(dashboard_router)
 app.include_router(incidents_router)
 app.include_router(detection_router)
@@ -53,11 +55,38 @@ app.include_router(attribution_router)
 app.include_router(assistant_router)
 app.include_router(reports_router)
 
-@app.get("/")
-def root():
-    return {
-        "system": "OceanGuard AI Backend",
-        "problem_statement": "SIH26143 — AI-based Oil Spill Detection, Tracking, Hindcasting and Vessel Attribution",
-        "docs": "/docs",
-        "status": "OPERATIONAL"
-    }
+
+# -----------------------------
+# REACT FRONTEND
+# -----------------------------
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DIST_DIR = PROJECT_ROOT / "dist"
+ASSETS_DIR = DIST_DIR / "assets"
+
+
+# Serve React assets
+if ASSETS_DIR.exists():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(ASSETS_DIR)),
+        name="assets",
+    )
+
+
+# Main website
+@app.get("/", include_in_schema=False)
+async def frontend():
+    return FileResponse(DIST_DIR / "index.html")
+
+
+# React SPA fallback
+@app.get("/{path:path}", include_in_schema=False)
+async def frontend_routes(path: str):
+
+    file_path = DIST_DIR / path
+
+    if file_path.is_file():
+        return FileResponse(file_path)
+
+    return FileResponse(DIST_DIR / "index.html")
