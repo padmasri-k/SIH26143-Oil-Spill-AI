@@ -1,7 +1,6 @@
 import { OilSpillIncident, SampleDetectionScan, ChatMessage, AttributedVessel } from '../types';
 import { mockIncidents, sampleScans } from '../data/mockData';
-
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 /**
  * Helper to fetch from backend with graceful fallback to mock dataset
